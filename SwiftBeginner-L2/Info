@@ -1,0 +1,92 @@
+SwiftBeginner-L7 (Core Data)
+(ВВИДЕОУРОК №7. CORE DATA.)
+
+
+
+
+https://pttrns.com
+https://appbase.io
+
+• Default session – стандартная конфигурация с глобальным cache и cookies, которые сохраняются на диск
+• Ephemeral session – аналогично Default Session, но данные хранятся в оперативной памяти и буду очищены, когда сессия завершена
+• Background session – позволяет скачивать и отправлять данные на сервер, даже если приложение было свернуто или закрыто
+
+
+// MARK: - Properties
+// MARK: - IBOutlets
+// MARK: - Life cycle
+// MARK: - IBActions
+// MARK: - Extension
+// MARK: - Navigation
+// MARK: - UserDefaults
+// MARK: - UITextFieldDelegate
+// MARK: - UITableViewDelegate
+// MARK: - UITableViewDataSource
+// MARK: - Table view data source
+
+
+
+// Modify
+
+func modify(note: Note, task: NoteModificationTask) {
+    
+    let context = coreDataManager.privateChildManagedObjectContext()
+    
+    if var notes = self.notes {
+        switch task {
+        case .create:
+            NoteCD.createInManagedObjectContext(moc: context, note: note)
+            notes.insert(note, at: 0)
+            break
+        case .edit:
+            // тут мы говорим что верни нам индекс который равен заметке "note"
+            if let index = notes.firstIndex(where: {$0 == note}) {
+                notes[index] = note
+            }
+            
+            // для изменения заметки в CoreData используем сущность NoteCD и её метод getNote(from:, by:) и ищем заметку в контексте по идентификатору
+            if let noteCD = NoteCD.getNoteObject(from: context, where: NSPredicate(format: "identifier == %@", note.identifier)) {
+                // записываем текст заметки в базу данных (CoreData)
+                noteCD.text = note.text
+            }
+            break
+        case .delete:
+            // тут мы говорим что нужно удалить заметку по индексу который равен заметке "note"
+            if let index = notes.firstIndex(where: {$0 == note}) {
+                notes.remove(at: index)
+            }
+            
+            // для удаления заметки из CoreData используем сущность NoteCD и её метод getNote(from:, by:) и ищем заметку в контексте по идентификатору
+            if let noteCD = NoteCD.getNoteObject(from: context, where: NSPredicate(format: "identifier == %@", note.identifier)) {
+                // удаляем заметку из базы данных (CoreData)
+                context.delete(noteCD)
+            }
+            break
+        }
+        
+        self.notes = notes
+        
+        // теперь нам нужно оповестить об обновлении значений нашего подписчика (делегата)
+        self.delegate?.dataSourseChanged(dataSourse: self.notes, error: nil)
+        
+        // теперь нам нужно сохранить наш "context"
+        context.performAndWait {
+            do {
+                if context.hasChanges { // если есть изменения в этом контексте то...
+                    try context.save() // то сохраняем эти изменения
+                }
+            } catch {
+                // если появилась какая-то ошибка, то мы её распечатаем
+                let saveError = error as NSError
+                print("Unable to Save Changes of Managed Object Context")
+                print("\(saveError), \(error.localizedDescription)")
+            }
+        }
+    }
+
+    // создаем операцию, например под названием "modification"
+    let modification = ModifyNoteOperation(note: note, task: task)
+
+    // в нашу очередь добавляем операцию "modification" и заметка будет (добавляться, изменяться или удаляться)!!!!!
+    modifyNotesQueue.addOperation(modification)
+}
